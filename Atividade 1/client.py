@@ -8,13 +8,13 @@ ADDRESS = (SERVER_IP, PORT)
 
 def send_image(client_socket, image_name):
     if not os.path.exists(image_name):
-        print("\n[ERRO] Arquivo de imagem não encontrado.")
+        print('\n[ERRO] Arquivo de imagem não encontrado.')
         return
-    client_socket.send("1".encode())
+    client_socket.send('1'.encode())
     client_socket.send(image_name.encode())
     image_size = os.path.getsize(image_name)
     client_socket.send(str(image_size).encode())
-    with open(image_name, "rb") as file:
+    with open(image_name, 'rb') as file:
         while chunk := file.read(1024):
             client_socket.send(chunk)
     confirmation = client_socket.recv(1024).decode()
@@ -24,7 +24,7 @@ def send_image(client_socket, image_name):
 def list_images(client_socket):
     client_socket.send(f'2'.encode())
     images = client_socket.recv(1024).decode()
-    print("\nImagens armazenadas:\n" + images)
+    print('\nImagens armazenadas:\n' + images)
 
 
 def search_image(client_socket, image_name):
@@ -40,27 +40,29 @@ def search_image(client_socket, image_name):
 # Main
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client_socket.connect(ADDRESS)
-print('[INÍCIO] Conexão com o servidor estabelecida.')
+print('[STATUS] Conexão com o servidor estabelecida.')
 while True:
     print('\nSelecione um comando:')
     print('1 - Enviar imagem')
     print('2 - Listar imagens salvas')
     print('3 - Pesquisar imagem')
     print('0 - Finalizar')
-    command = input()
+    command = input('>> ')
     match command:
         case '1':
-            image_name = str(input("Imagem a ser enviada (ex.: image.jpg): "))
+            image_name = str(input('\nImagem a ser enviada (ex.: image.jpg): '))
             send_image(client_socket, image_name)
         case '2':
             list_images(client_socket)
         case '3':
-            image_name = str(input("Imagem a ser pesquisada (ex.: image.jpg): "))
+            image_name = str(input('\nImagem a ser pesquisada (ex.: image.jpg): '))
             search_image(client_socket, image_name)
         case '0':
             client_socket.send(f'0'.encode())
-            print('\nConexão encerrada.')
+            print('\n[STATUS] Conexão com o servidor encerrada.')
             break
         case _:
-            print('[ERRO] Comando inválido.')
+            print('\n[ERRO] Comando inválido.')
+    print('\nDigite ENTER para continuar... ', end='')
+    input()
 client_socket.close()

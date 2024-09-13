@@ -25,3 +25,4 @@ print('[INÍCIO] Conexão com o servidor estabelecida.')
 while message != DISCONNECT_MESSAGE:
     message = str(input('Mensagem a ser enviada: '))
     send_message(message)
+client_socket.close()

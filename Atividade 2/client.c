@@ -4,88 +4,14 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include "person.h"
+#include "serialization.h"
 
-#define MAX_STR_LEN 256
 #define PORT 5050
+#define SERVER_IP "127.0.1.1"
 
-typedef struct endereco {
-	char *rua;
-	char *bairro;
-	long numero;
-} Endereco;
-
-typedef struct dadosBancarios {
-	char *banco;
-	char *agencia;
-	char *conta;
-} DadosBancarios;
-
-typedef struct pessoa {
-	char *nome;
-	Endereco endereco;
-	DadosBancarios *dados_bancarios;
-} Pessoa;
-
-
-void serialize_string(int client_socket, const char *string) {;
-	uint32_t length = htonl(strlen(string));
-	send(client_socket, &length, sizeof(length), 0);
-	send(client_socket, string, strlen(string), 0);
-}
-
-void serialize_int(int client_socket, uint32_t number) {
-	uint32_t number_network_order = htonl(number);
-	send(client_socket, &number_network_order, sizeof(number_network_order), 0);
-}
-
-void serialize_long(int client_socket, uint64_t number) {
-	uint32_t high_part = htonl((uint32_t) (number >> 32));
-	uint32_t low_part = htonl((uint32_t) (number & 0xFFFFFFFF));
-	send(client_socket, &high_part, sizeof(high_part), 0);
-	send(client_socket, &low_part, sizeof(low_part), 0);
-}
-
-void serialize_person(int client_socket, Pessoa pessoa) {
-	serialize_string(client_socket, "nome");
-	serialize_string(client_socket, pessoa.nome);
-
-	serialize_string(client_socket, "endereco");
-	serialize_string(client_socket, "rua");
-	serialize_string(client_socket, pessoa.endereco.rua);
-	serialize_string(client_socket, "bairro");
-	serialize_string(client_socket, pessoa.endereco.bairro);
-	serialize_string(client_socket, "numero");
-	serialize_long(client_socket, pessoa.endereco.numero);
-
-	serialize_string(client_socket, "dados_bancarios");
-	serialize_string(client_socket, "banco");
-	serialize_string(client_socket, pessoa.dados_bancarios->banco);
-	serialize_string(client_socket, "agencia");
-	serialize_string(client_socket, pessoa.dados_bancarios->agencia);
-	serialize_string(client_socket, "conta");
-	serialize_string(client_socket, pessoa.dados_bancarios->conta);
-}
-
-int deserialize_int(int client_socket) {
-	uint32_t number_network_order;
-	recv(client_socket, &number_network_order, sizeof(number_network_order), 0);
-	int number = ntohl(number_network_order);
-	return number;
-}
-
-char * deserialize_string(int client_socket) {
-	uint32_t length_network_order;
-	recv(client_socket, &length_network_order, sizeof(length_network_order), 0);
-	uint32_t length = ntohl(length_network_order);
-	char *string = (char*) malloc(length + 1);
-	recv(client_socket, string, length, 0);
-	string[length] = '\0';
-	return string;
-}
-
-int main(int argc, char const* argv[]) {
-	int status, valread, client_socket, n_people;
-	char * person_repr;
+int main() {
+	int status, client_socket, n_people;
 	struct sockaddr_in serv_addr;
 
 	if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -96,7 +22,7 @@ int main(int argc, char const* argv[]) {
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_port = htons(PORT);
 
-	if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0) {
+	if (inet_pton(AF_INET, SERVER_IP, &serv_addr.sin_addr) <= 0) {
 		printf("\n[ERRO] Endereco invalido ou nao suportado.\n");
 		return -1;
 	}
@@ -106,16 +32,9 @@ int main(int argc, char const* argv[]) {
 		return -1;
 	}
 
-	printf("[STATUS] Conexao com o servidor estabelecida.\n");
+	printf("[STATUS] Conexao com o servidor estabelecida.\n\n");
 
-	Pessoa pessoa;
-	pessoa.nome = (char *) malloc(MAX_STR_LEN * sizeof(char));
-	pessoa.endereco.rua = (char *) malloc(MAX_STR_LEN * sizeof(char));
-	pessoa.endereco.bairro = (char *) malloc(MAX_STR_LEN * sizeof(char));
-	pessoa.dados_bancarios = (DadosBancarios *) malloc(sizeof(DadosBancarios));
-	pessoa.dados_bancarios->banco = (char *) malloc(MAX_STR_LEN * sizeof(char));
-	pessoa.dados_bancarios->agencia = (char *) malloc(MAX_STR_LEN * sizeof(char));
-	pessoa.dados_bancarios->conta = (char *) malloc(MAX_STR_LEN * sizeof(char));
+	Pessoa pessoa = create_person();
 
 	int option = 1;
 	while (option) {
@@ -151,14 +70,17 @@ int main(int argc, char const* argv[]) {
 				serialize_int(client_socket, 2);
 				n_people = deserialize_int(client_socket);
 				if (n_people == 0)
-					printf("\nNenhuma pessoa inserida.\n");
-				else
-					printf("\nLista de pessoas:\n");
-				while (n_people--) {
-					person_repr = deserialize_string(client_socket);
-					printf("%s\n", person_repr);
-				}
-				printf("\n");
+					printf("\nNenhuma pessoa inserida.\n\n");
+				else {
+                    int i;
+                    printf("\nLista de pessoas:\n\n");
+                    for (i = 1; i <= n_people; i++) {
+                        printf("(Pessoa #%d) ", i);
+                        pessoa = deserialize_person(client_socket);
+                        print_person(pessoa);
+                        printf("\n\n");
+                    }
+                }
 				break;
 
 			case 0: // Finalizar
@@ -172,16 +94,9 @@ int main(int argc, char const* argv[]) {
 		}
 	}
 
-
 	printf("\n[STATUS] Conexao com o servidor encerrada.\n");
 
-	if (pessoa.endereco.rua) free(pessoa.endereco.rua);
-	if (pessoa.endereco.bairro) free(pessoa.endereco.bairro);
-	if (pessoa.dados_bancarios->banco) free(pessoa.dados_bancarios->banco);
-	if (pessoa.dados_bancarios->agencia) free(pessoa.dados_bancarios->agencia);
-	if (pessoa.dados_bancarios->conta) free(pessoa.dados_bancarios->conta);
-	if (pessoa.dados_bancarios) free(pessoa.dados_bancarios);
-
+    free_person(&pessoa);
 	close(client_socket);
 	return 0;
 }
